@@ -22,6 +22,44 @@ __global__ void MatrixMulKernelSquare(float* M, float* N, float* P, int width)
   }
 }
 
+//write a kernel that has each thread produce one output matrix row. 
+//Fill in the execution configuration parameters for the design. 
+__global__ void MatrixMulKernelSquareRow(float* M, float* N, float* P, int width)
+{
+  int row = blockDim.x * blockIdx.x + threadIdx.x;
+  if (row < width)
+  {
+    for (int c{0}; c < width; ++c)
+    {
+      float Pval{0};
+      for (int k{0}; k < width;  ++k)
+      {
+        Pval += M[row*width+k]*N[width*k+c];
+      }
+      P[row*width + c] = Pval;
+    }
+  }
+}
+
+//b. Write a kernel that has each thread to produce one output matrix column. 
+// Fill in the execution configuration parameters for the design.
+__global__ void MatrixMulKernelSquareColumn(float* M, float* N, float* P, int width)
+{
+  int col = blockDim.x * blockIdx.x + threadIdx.x;
+  if (col < width)
+  {
+    for (int r{0}; r < width; ++r)
+    {
+      float Pval{0};
+      for (int k{0}; k < width; ++k)
+      {
+        Pval += M[r*width+k]*N[k*width+col];
+      }
+      P[r*width+col] = Pval;
+    }
+  }
+}
+
 int main()
 {
     const int width{512};
@@ -67,6 +105,10 @@ int main()
     cudaFree(M_d);
     cudaFree(N_d);
     cudaFree(P_d);
+
+    for (auto element: P_h)
+      std::cout << element << ' ';
+    std::cout << '\n';
 
     return 0;
 }
