@@ -60,6 +60,7 @@ __global__ void MatrixMulKernelSquareColumn(float* M, float* N, float* P, int wi
   }
 }
 
+
 int main()
 {
     const int width{512};
