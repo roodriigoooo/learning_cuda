@@ -4,8 +4,8 @@ const int TILE_WIDTH{16};
 
 __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
 {
-    __shared__ float* Mds[TILE_WIDTH][TILE_WIDTH];
-    __shared__ float* Nds[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Mds[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Nds[TILE_WIDTH][TILE_WIDTH];
 
     int by{blockIdx.y}; int ty{threadIdx.y};
     int bx{blockIdx.x}; int tx{threadIdx.x};
@@ -28,5 +28,16 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
                 -> thread_{0,1} loads M_{0,3} and N{2,1} into shared memory in phase 1. 
                 -> notice that the general rule is that thread_{ty, tx} loads M_{ty, TILE_WIDTH * ph + tx} and N_{(TILE_WIDTH * ph + ty), tx}.    
         */
+       Mds[ty][tx] = M[Width*Row + TILE_WIDTH*ph + tx]; 
+       Nds[ty][tx] = N[(TILE_WIDTH * ph + ty)*Width + Col];
+       __syncthreads(); // dependency: we want all threads to finish writing to shared memory arrays before any reads from them. 
+
+       // with the tile loaded into shared memory, do the calculations for the current phase:
+       for (int k{0}; k<TILE_WIDTH; ++k)
+       {
+            Pvalue += Mds[ty][k]*Nds[tx][k];
+       }
+       __syncthreads(); // dependency: we want all threads to wait for data to be read by all threads before overwriting it.
     }
+    P[Row*Width+Col] = Pvalue;
 }
