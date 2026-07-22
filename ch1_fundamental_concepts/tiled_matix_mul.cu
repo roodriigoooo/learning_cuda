@@ -30,8 +30,18 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
                 -> thread_{0,1} loads M_{0,3} and N{2,1} into shared memory in phase 1. 
                 -> notice that the general rule is that thread_{ty, tx} loads M_{ty, TILE_WIDTH * ph + tx} and N_{(TILE_WIDTH * ph + ty), tx}.    
         */
-       Mds[ty][tx] = M[Width*Row + TILE_WIDTH*ph + tx]; 
-       Nds[ty][tx] = N[(TILE_WIDTH * ph + ty)*Width + Col];
+
+        // input and output boundary guards
+       if (Row < Width && (TILE_WIDTH * ph + tx) < Width) 
+       {
+            Mds[ty][tx] = M[Width*Row + TILE_WIDTH*ph + tx];
+       }
+       else Mds[ty][tx] = 0.0f;
+       if (Col < Width && (TILE_WIDTH *ph + ty) < Width) 
+       {
+            Nds[ty][tx] = N[(TILE_WIDTH * ph + ty)*Width + Col];
+       }
+       else Mds[ty][tx] = 0.0f;
        __syncthreads(); // dependency: we want all threads to finish writing to shared memory arrays before any reads from them. 
 
        // with the tile loaded into shared memory, do the calculations for the current phase:
@@ -41,7 +51,10 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
        }
        __syncthreads(); // dependency: we want all threads to wait for data to be read by all threads before overwriting it.
     }
-    P[Row*Width+Col] = Pvalue;
+
+    // output boundary guard: only allow threads writing a valid P value 
+    if (Row < Width && Col << Width)
+        P[Row*Width+Col] = Pvalue;
 }
 
 // +++++++++++++++++++++++
