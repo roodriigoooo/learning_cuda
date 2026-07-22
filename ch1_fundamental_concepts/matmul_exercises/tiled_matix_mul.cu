@@ -19,7 +19,9 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
     // initialize variable to aggregate result through phases.
     float Pvalue = 0;
 
-    for (int ph{0}; ph < (Width/TILE_WIDTH); ++ph)
+
+    // avoid integer division BEFORE result is passed to ceil. (float) for this reason. 
+    for (int ph{0}; ph < ceil(Width/(float)TILE_WIDTH); ++ph)
     {
         // load values into shared memory. each thread will load one value from M and another from N. 
         /*
@@ -41,7 +43,7 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int Width)
        {
             Nds[ty][tx] = N[(TILE_WIDTH * ph + ty)*Width + Col];
        }
-       else Mds[ty][tx] = 0.0f;
+       else Nds[ty][tx] = 0.0f;
        __syncthreads(); // dependency: we want all threads to finish writing to shared memory arrays before any reads from them. 
 
        // with the tile loaded into shared memory, do the calculations for the current phase:
