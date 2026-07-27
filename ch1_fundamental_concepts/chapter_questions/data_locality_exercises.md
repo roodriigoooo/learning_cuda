@@ -78,4 +78,101 @@ Registers and shared memory are both on-chip memory structures, and therefore bo
 - For this device, the machine balance is 1.2 FLOPs/byte. Therefore, in this case the arithmetic intensity of the kernel exceeds the machine balance of the underlying device, and therefore is compute-bound. 
 
 
+#### *10. To manipulate tiles, a new CUDA programmer has written the following device kernel which will transpose each tile in a matrix. The tiles are of size BLOCK_WIDTH by BLOCK_WIDTH, and each of the dimensions of matrix A is known to be a multiple of BLOCK_WIDTH. The kernel invocation and code are shown below. BLOCK_WIDTH is known at compile-time and could be set anywhere from 1 to 20.*
+```c++
+dim3 blockDim(BLOCK_WIDTH, BLOCK_WIDTH);
+dim3 gridDim(A_width/blockDim.x, A_height/blockDim.y);
+BlockTranspose<<<gridDim, blockDim>>>(A, A_width, A_height);
 
+__global__ void BlockTranspose(float* A_elements, int A_width, int A_height)
+{
+    __shared__ float blockA[BLOCK_WIDTH][BLOCK_WIDTH];
+
+    int baseIdx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    baseIdx += (blockIdx.y * BLOCK_SIZE + threadIdX.y) * A_width;
+
+    blockA[threadIdx.y][threadIdx.x] = A_elements[baseIdx];
+    A_elements[baseIdx] = blockA[threadIdx.x][threadIdx.y];
+}
+```
+#### *a) Out of the possible range of values for BLOCK_SIZE, for what values of BLOCK_SIZE will this kernel function execute correctly on the device?*
+- The key thing to note here is that, in line `blockA[threadIdx.y][threadIdx.x] = A_elements[baseIdx];`, $thread_{x, y}$ loads an element from global memory into `blockA[ty][tx]`. The same thread, in the line immediately after, reads an element from shared memory written by $thread_{y,x}$. Therefore, the risk is that a given thread attemps to read an element from shared memory that has not yet been written by another thread. The only case in which this risk does not exist is if we let `BLOCK_SIZE` be 1, in which case a block would contain a single thread, which would not have to risk reading anything from anyone else. This is of course not very useful. 
+
+#### *b) If the code does not execute correctly for all BLOCK_SIZE values, what is the root cause of this incorrect execution behavior? Suggest a fix to the code to make it work with all of the possible BLOCK_SIZE values.*
+- The root cause is that described in part a). As a fix to the code, a sufficient solution would be to explicitly synchronize the threads between the last two lines:
+```c++
+dim3 blockDim(BLOCK_WIDTH, BLOCK_WIDTH);
+dim3 gridDim(A_width/blockDim.x, A_height/blockDim.y);
+BlockTranspose<<<gridDim, blockDim>>>(A, A_width, A_height);
+
+__global__ void BlockTranspose(float* A_elements, int A_width, int A_height)
+{
+    __shared__ float blockA[BLOCK_WIDTH][BLOCK_WIDTH];
+
+    int baseIdx = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    baseIdx += (blockIdx.y * BLOCK_SIZE + threadIdX.y) * A_width;
+
+    blockA[threadIdx.y][threadIdx.x] = A_elements[baseIdx];
+    __syncthreads();
+    A_elements[baseIdx] = blockA[threadIdx.x][threadIdx.y];
+}
+```
+
+#### *11. Consider the following CUDA kernel and the corresponding host function that calls it:*
+```c++
+__global__ void foo_kernel(float* a, float* b)
+{
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    float x[4];
+    __shared__ float y_s;
+    __shared__ float b_s[128];
+    for (unsigned int j = 0; j < 4; ++j)
+    {
+        x[j] = a[j*blockDim.x*gridDim.x + i];
+    }
+    if (threadIdx.x == 0)
+    {
+        y_s = 7.4f;
+    }
+    b_s[threadIdx.x] = b[i];
+    __syncthreads();
+    b[i] = 2.5f*x[0] + 3.7f*x[1] + 6.3f*x[2] + 8.5f*x[3] + y_s*b_s[threadIdx.x] + b_s[(threadIdx.x + 3)%128];
+}
+
+void foo(int* a_d, int* b_d)
+{
+    unsigned int \texttts{N} = 1024;
+    foo_kernel<<<(N+128-1)/128, 128>>>(a_d, b_d);
+}
+```
+
+#### *a) How many versions of the variable `i` are there?*
+- Being an automatic scalar variable, the `i` variable will be stored in the threads' registers. This means that there will be as many versions as there are threads. In this case, there will be 8 blocks, each with 128 threads. Therefore, there will be 1024 versions of `i`. 
+
+#### *b) How many versions of the array `x[]` are there?*
+- `x[]` is an automatic array variable, and hence it will be stored by default in the local memory, which, like registers, have a thread scope. There will be as many versions of `x[]` are there are threads (1152 versions). This is true even if the CUDA compiler decided to instead store the variable in registers in the case that all accesses to `x[]` were with constant indexes.
+
+#### *c) How many versions of the variable `y_s` are there?`*
+- `y_s` is declared with `__shared__`, and therefore it has a block scope. There will be one instance of `y_s` in each block. We have 8 blocks, so there will be 8 versions of `y_s`. 
+
+#### *d) How many versions of the array `b_s[]` are there?*
+- same as c)
+
+#### *e) What is the amount of shared memory used per block (in B)?*
+- `float y_s` is one variable of 4 bytes, and `float b_s[128]` is one array of 128 floats of 4 bytes each. Therefore, the amount of shared memory used per block will be 129*4 = 512 bytes. 
+
+#### *f) What is the floating point to global memory access ratio of the kernel (in OP/B)?*
+- In total, we access 24 bytes of global memory: in the for loop, we access some element of `a` four times (4 * 4 bytes). Then we read again `b[i]` (4 more bytes). Then a write operation happens near then end, when writing to `b[i]` (1 * 4 bytes). 
+- In regards to floating-point operations, we perform 5 multiplication operations and 5 addition operations. 
+- Therefore, the floating point to global memory access ratio of the kernel is 10 FLOPS/24 bytes = 5 FLOPS/12 bytes = 0.417 OP/B. 
+
+#### *12) Consider a GPU with the following hardware limits: 2048 threads/SM, 32 blocks/SM, 64 K (65536) registers/SM, and 96 KB of shared memory/SM. For each of the following kernel characteristics, specify if the kernel can achieve full occupancy. If not, specify the limiting factor.*
+#### *a) The kernel uses 64 threads/block, 27 registers/thread, and 4 KB of shared memory/SM.*
+- 64 threads/block and 32 blocks/SM -> 2048 threads per SM. good. 
+- 2048 threads/SM, 27 registers/thread -> 55296 registers/SM. good. 
+- 32 blocks/SM and 4 KB of shared memory/block -> 128 KB > 96 KB. The shared memory is exhausted first, the SM can only fit `floor(96KB/4KB per block) = 24 blocks`. At 24 blocks, we would have 1536 threads (occupancy of 1536/2048) = 75%.  
+#### *b) The kernel uses 256 threads/block, 31 registers/thread, and 8 KB of shared memory/SM.*
+- 256 threads/block and 32 blocks/SM = 8192 threads per SM. 8192 > 2048. We can have a maximum of 2048/256 = 8 blocks, but all threads are still used. good. 
+- 2048 threads/SM and 31 registers/thread -> 63488 registers/SM. good. 
+- 8 blocks/SM, and 8KB of shared memory/block. 64 KB of shared memory/SM. good. 
+- Full occupancy is reached. 
