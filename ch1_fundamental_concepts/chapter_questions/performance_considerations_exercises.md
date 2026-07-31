@@ -42,10 +42,20 @@ __global__ void foo_kernel(float* a, float* b, float* c, float* d, float* e)  //
 - #### *i. The access to array `e` of line 10*
     - No. See d.
 
-#### *2. Write a matrix multiplication kernel function that uses corner turning, corresponding to the design illustrated here: 
+#### *2. Write a matrix multiplication kernel function that uses corner turning, corresponding to the design illustrated here:* 
 
 ![Applying corner turning to coalesce accesses to matrix N which is stored in column-major layout.](figures/image.png)[^1]
 
 [^1]: Hwu, W. W., Kirk, D. B., & El Hajj, I. *Programming Massively Parallel Processors: A Hands-on Approach* (5th ed.). Morgan Kaufmann.
+
+- See my [solution](https://github.com/roodriigoooo/learning_cuda/blob/main/ch1_fundamental_concepts/performance_considerations/mat_mul_with_corner_turning.cu)
+
+#### *3. placeholder*
+
+#### *4. Implement a vector addition kernel that uses vector loads and handles the boundary conditions correctly*. 
+
+- See my [solution](https://github.com/roodriigoooo/learning_cuda/blob/main/ch1_fundamental_concepts/performance_considerations/vector_loads_add.cu)
+
+#### *5. placeholder*
 
 
