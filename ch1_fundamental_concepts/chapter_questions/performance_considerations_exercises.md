@@ -50,12 +50,16 @@ __global__ void foo_kernel(float* a, float* b, float* c, float* d, float* e)  //
 
 - See my [solution](https://github.com/roodriigoooo/learning_cuda/blob/main/ch1_fundamental_concepts/performance_considerations/mat_mul_with_corner_turning.cu)
 
-#### *3. placeholder*
+#### *3. For tiled matrix multiplication, out of the possible ranges of values for `BLOCK_SIZE`, for what values of `BLOCK_SIZE` will the kernel completely avoid uncoalesced accessed to global memory (You need to consider only square blocks.)*
+
+- To answer this question, we need to consider how global memory is accessed in the kernel. When loading matrix `M` to shared memory, the index of the loaded element is given by: `(by * BLOCK_SIZE + ty)*Width + (ph * BLOCK_SIZE + tx)`, where `(by * BLOCK_SIZE + ty)` is the accessed row in `M`. For `N`, the index of the loaded element is given by:  `(ph * BLOCK_SIZE + ty)*Width + (bx * BLOCK_SIZE + tx)`. In any case, we see that for all `M`, `N` and output matrix `P`, the `tx` serves as the unit-stride term that moves contiguously across locations, while the `ty` term is multiplied by Width, and therefore moves in jumps of `Width * 4` bytes.
+- Therefore, any BLOCK_SIZE that does not fully make use of the number of threads in a warp (32) is bound to have some uncoalesced accesses. If `BLOCK_SIZE` was to be 32 (or a multiple thereof), warp 0 will always have `ty = 0`, warp 1 `ty=1`, etc, and `tx` would run contigously for all threads. This would allow the hardware to combine the 32 accesses into a single 128-byte transaction. 
+- Any multiple of 32 for `BLOCK_SIZE` would allow this, but we also need to keep in mind the cap on maximum threads (assume 1024 threads per block max.). `BLOCK_SIZE^2` is the number of threads we would have in a block of size `BLOCK_SIZE` (assuming squared blocks) and therefore a `BLOCK_SIZE` of 64 would already far surpass the limit (4096 threads). 
 
 #### *4. Implement a vector addition kernel that uses vector loads and handles the boundary conditions correctly*. 
 
 - See my [solution](https://github.com/roodriigoooo/learning_cuda/blob/main/ch1_fundamental_concepts/performance_considerations/vector_loads_add.cu)
 
-#### *5. placeholder*
+
 
 
