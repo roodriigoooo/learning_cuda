@@ -22,7 +22,7 @@ __global__ void TiledMatrixMulKernel(float* M, float* N, float* P, int j, int k,
     float Pvalue = 0;
 
     // to avoid type conversion overhead (int -> float -> ceilf -> int), use pure integer arithmetic directly. 
-    int numPhases = k + TILE_WIDTH - 1 / TILE_WIDTH;
+    int numPhases = (k + TILE_WIDTH - 1) / TILE_WIDTH;
     for (int ph{0}; ph < numPhases; ++ph)
     {
         // load values into shared memory. each thread will load one value from M and another from N. 

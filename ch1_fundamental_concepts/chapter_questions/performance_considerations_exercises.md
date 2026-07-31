@@ -41,3 +41,11 @@ __global__ void foo_kernel(float* a, float* b, float* c, float* d, float* e)  //
 
 - #### *i. The access to array `e` of line 10*
     - No. See d.
+
+#### *2. Write a matrix multiplication kernel function that uses corner turning, corresponding to the design illustrated here: 
+
+![Applying corner turning to coalesce accesses to matrix N which is stored in column-major layout.](figures/image.png)[^1]
+
+[^1]: Hwu, W. W., Kirk, D. B., & El Hajj, I. *Programming Massively Parallel Processors: A Hands-on Approach* (5th ed.). Morgan Kaufmann.
+
+
