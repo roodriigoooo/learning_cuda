@@ -60,6 +60,36 @@ __global__ void foo_kernel(float* a, float* b, float* c, float* d, float* e)  //
 
 - See my [solution](https://github.com/roodriigoooo/learning_cuda/blob/main/ch1_fundamental_concepts/performance_considerations/vector_loads_add.cu)
 
+#### *5. Consider the following shared memory array and access to the array by a block with one warp (32 threads):*
+```c++
+__shared__ float a[1024];
+a[threadIdx.x*stride] = ...;
+```
+#### *Assume that `a[0]` is placed in bank 0. For each of the following values of `stride`, specify the banks accessed by the warp, and the number of bank conflicts on each bank (if any):*
+
+    - Firstly, to answer this question we need to recall that shared memory is made from SRAM technology, which has much shorter latency and can therefore avoid relying on bursts and keep banks narrow. Assuming, as is typical, that the shared memory structure has 32 banks, each 32 bits wide, we will therefore have a single `float` element (4 bytes) at any given bank. 
+    - In general, the bank used, under these assumptions, will just be the index mod 32: `bank(a[i]) = i % 32`. So, for instance, if `stride` = 12, then thread `t` will read `a[12t]` and the bank for thread 0 will be 0, that of thread 1 will be 12, that of thread 4 will be 16, etc. Thread 8 will have index 96 (8*12), and the bank will be, once again, 0. Not only that, but no new bank will ever appear after this, as thread 9 is just thread 1 shifted by 32 * 3 = 96, just like thread 12 is thread 4 shifted by 96, and 96 % 32 = 0. 
+    - Put another way, if we take 12-unit long steps around a 32-unit circular strip, we will first land on 12, then on 24, and then 36 will wrap around to land us at 4. 36 is a multiple of our step size, and we will in fact always land at an index of shape "some multiple of step size - some multiple of 32". Once we have reached 4 we will also be able to reach 16, 28, 8, 20, 32, 12, 24, 4. **We will never reach a point that is not a multiple of 4**, and there are 8 multiples of 4 that are below 32 (32/4 = 8), which is the number of banks we can possibly make use of given a stride of 12. 
+    - In regards to the number of bank conflicts per bank, we know that whatever the number of banks used is, they will be used equally among all threads. If we use 1 bank, then there will be 32 bank conflicts on that bank. If we use 2 banks, there will be 16 bank conflicts on each bank, since 32 / (32/16) = 16. So, in general, the number of bank conflicts per thread will be given by 32 / (32/gcd(stride, 32)) = gcd(stride, 32). 
+
+- #### *a. `stride` = 32*
+    - Banks accessed: only bank 0 (since all accesses will be exact multiples of 32). 
+    - Number of bank conflicts = 32. 
+- #### *b. `stride` = 31*
+    - Banks accessed: all 32 banks. Thread 1 will go to bank 31, thread 2 to bank 30, and so on. Completely conflict free. 
+- #### *c. `stride` = 24*
+    - Banks accessed: thread 1 will go to bank 24, thread 2 will go to bank 16, thread 3 will go to bank 8. thread 4 will go to bank 0, and no new bank will appear from this point onwards. 4 banks. 
+    - 8 bank conflicts per bank. 
+- #### *d. `stride` = 16*
+    - Banks accessed: two banks: 0 and 16. 
+    - 16 bank conflicts per bank. 
+- #### *e. `stride` = 12*
+    - Banks accessed: 8 banks, see discussion above. 
+    - 4 bank conflicts per bank. 
+- #### *f. `stride` = 8*
+    - Same pattern as 24, as gcd(8, 32) = gcd(24, 32) = 8.
+- #### *g. `stride` = 7*
+    - gcd(7, 32) = 1. All banks will be accessed, completely conflict free. 
 
 
 
