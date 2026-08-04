@@ -30,7 +30,7 @@ __global__ void conv_using_caches_for_halo_cells(float* N, float* P, int width, 
                 (as they are part of the internal block) and some others will be read from global memory. 
                 --> the latter case is the worst case. Note that a thread in the very middle of the tile will have all of its footprint inside the shared memory, and 
                     will never take a global path whatsoever. 
-                --> in any case, a block's needed input portion is not part of its shared memory is part of the territory of neighboring blocks. 
+                --> in any case, a block's needed input portion that is not part of its shared memory is part of the territory of neighboring blocks. 
                     note: within a single block, the same halo element is needed by up to 2R+1 different threads, and those repeated reads will be caught by L1, which are private to an SM. 
                     across blocks, the sharing needs to happen at the L2 level. so say block(2,1) on SM A will load its interior, fill the L2 cache, and then Block(1,1) on SM B will eventually hit the L2 cache, 
                     the hardware will notice that the desired memory location is occupied by an element in the L2 cache, and serve SM B. DRAM is not reached in this process!!
